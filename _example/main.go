@@ -105,7 +105,10 @@ func midi(soundFont *meltysynth.SoundFont, midiFilePath string, outputFile strin
 	}
 
 	// Create the MIDI sequencer.
-	sequencer := meltysynth.NewMidiFileSequencer(synthesizer)
+	sequencer, err := meltysynth.NewMidiFileSequencer(synthesizer)
+	if err != nil {
+		return err
+	}
 	sequencer.Play(midiFile, true)
 
 	// The output buffer.
@@ -144,7 +147,10 @@ func writePCMInterleavedInt16(left []float32, right []float32, pcm io.Writer) er
 		}
 	}
 
-	a := 32768 * float32(0.99/max)
+	a := float32(0)
+	if max > 0 {
+		a = 32768 * float32(0.99/max)
+	}
 
 	data := make([]int16, 2*length)
 

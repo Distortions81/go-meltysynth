@@ -1,6 +1,7 @@
 package meltysynth
 
 import (
+	"errors"
 	"math"
 )
 
@@ -47,6 +48,13 @@ type Synthesizer struct {
 }
 
 func NewSynthesizer(sf *SoundFont, settings *SynthesizerSettings) (*Synthesizer, error) {
+	if sf == nil {
+		return nil, errors.New("soundfont must not be nil")
+	}
+	if settings == nil {
+		return nil, errors.New("settings must not be nil")
+	}
+
 	err := settings.validate()
 	if err != nil {
 		return nil, err
@@ -327,6 +335,9 @@ func (s *Synthesizer) Reset() {
 func (s *Synthesizer) Render(left []float32, right []float32) {
 	var wrote int32
 	length := int32(len(left))
+	if rightLength := int32(len(right)); rightLength < length {
+		length = rightLength
+	}
 	for wrote < length {
 		if s.blockRead == s.BlockSize {
 			s.renderBlock()
@@ -354,29 +365,24 @@ func (s *Synthesizer) renderBlock() {
 	blockSize := int(s.BlockSize)
 	s.voices.process()
 	activeVoiceCount := int(s.voices.activeVoiceCount)
+	masterVolume := s.MasterVolume
 
-	for i := 0; i < blockSize; i++ {
-		s.blockLeft[i] = 0
-		s.blockRight[i] = 0
-	}
+	zeroFloat32s(s.blockLeft[:blockSize])
+	zeroFloat32s(s.blockRight[:blockSize])
 
 	for i := 0; i < activeVoiceCount; i++ {
 		voice := s.voices.voices[i]
-		previousGainLeft := s.MasterVolume * voice.previousMixGainLeft
-		currentGainLeft := s.MasterVolume * voice.currentMixGainLeft
+		previousGainLeft := masterVolume * voice.previousMixGainLeft
+		currentGainLeft := masterVolume * voice.currentMixGainLeft
 		s.writeBlock(previousGainLeft, currentGainLeft, voice.block, s.blockLeft)
-		var previousGainRight = s.MasterVolume * voice.previousMixGainRight
-		var currentGainRight = s.MasterVolume * voice.currentMixGainRight
+		var previousGainRight = masterVolume * voice.previousMixGainRight
+		var currentGainRight = masterVolume * voice.currentMixGainRight
 		s.writeBlock(previousGainRight, currentGainRight, voice.block, s.blockRight)
 	}
 
 	if s.EnableReverbAndChorus {
-		for i := 0; i < blockSize; i++ {
-			s.chorusInputLeft[i] = 0
-		}
-		for i := 0; i < blockSize; i++ {
-			s.chorusInputRight[i] = 0
-		}
+		zeroFloat32s(s.chorusInputLeft[:blockSize])
+		zeroFloat32s(s.chorusInputRight[:blockSize])
 		for i := 0; i < activeVoiceCount; i++ {
 			voice := s.voices.voices[i]
 			previousGainLeft := voice.previousChorusSend * voice.previousMixGainLeft
@@ -387,33 +393,37 @@ func (s *Synthesizer) renderBlock() {
 			s.writeBlock(previousGainRight, currentGainRight, voice.block, s.chorusInputRight)
 		}
 		s.chorus.process(s.chorusInputLeft, s.chorusInputRight, s.chorusOutputLeft, s.chorusOutputRight)
-		arrayMultiplyAdd(s.MasterVolume, s.chorusOutputLeft, s.blockLeft)
-		arrayMultiplyAdd(s.MasterVolume, s.chorusOutputRight, s.blockRight)
+		arrayMultiplyAdd(masterVolume, s.chorusOutputLeft, s.blockLeft)
+		arrayMultiplyAdd(masterVolume, s.chorusOutputRight, s.blockRight)
 
-		for i := 0; i < blockSize; i++ {
-			s.reverbInput[i] = 0
-		}
+		zeroFloat32s(s.reverbInput[:blockSize])
+		reverbInputGain := s.reverb.getInputGain()
 		for i := 0; i < activeVoiceCount; i++ {
 			voice := s.voices.voices[i]
-			previousGain := s.reverb.getInputGain() * voice.previousReverbSend * (voice.previousMixGainLeft + voice.previousMixGainRight)
-			currentGain := s.reverb.getInputGain() * voice.currentReverbSend * (voice.currentMixGainLeft + voice.currentMixGainRight)
+			previousGain := reverbInputGain * voice.previousReverbSend * (voice.previousMixGainLeft + voice.previousMixGainRight)
+			currentGain := reverbInputGain * voice.currentReverbSend * (voice.currentMixGainLeft + voice.currentMixGainRight)
 			s.writeBlock(previousGain, currentGain, voice.block, s.reverbInput)
 		}
 		s.reverb.process(s.reverbInput, s.reverbOutputLeft, s.reverbOutputRight)
-		arrayMultiplyAdd(s.MasterVolume, s.reverbOutputLeft, s.blockLeft)
-		arrayMultiplyAdd(s.MasterVolume, s.reverbOutputRight, s.blockRight)
+		arrayMultiplyAdd(masterVolume, s.reverbOutputLeft, s.blockLeft)
+		arrayMultiplyAdd(masterVolume, s.reverbOutputRight, s.blockRight)
 	}
 }
 
 func (s *Synthesizer) writeBlock(previousGain float32, currentGain float32, source []float32, destination []float32) {
-	if math.Max(float64(previousGain), float64(currentGain)) < float64(nonAudible) {
+	if previousGain < currentGain {
+		if currentGain < nonAudible {
+			return
+		}
+	} else if previousGain < nonAudible {
 		return
 	}
 
-	if math.Abs(float64(currentGain-previousGain)) < 1.0e-3 {
+	delta := currentGain - previousGain
+	if delta < 1.0e-3 && delta > -1.0e-3 {
 		arrayMultiplyAdd(currentGain, source, destination)
 	} else {
-		step := s.inverseBlockSize * (currentGain - previousGain)
+		step := s.inverseBlockSize * delta
 		arrayMultiplyAddSlope(previousGain, step, source, destination)
 	}
 }

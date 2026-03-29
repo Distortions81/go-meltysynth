@@ -20,7 +20,6 @@ type SampleHeader struct {
 }
 
 func readSampleHeadersFromChunk(r io.Reader, size int32) ([]*SampleHeader, error) {
-	var n int
 	var err error
 
 	if size == 0 || size%46 != 0 {
@@ -105,12 +104,8 @@ func readSampleHeadersFromChunk(r io.Reader, size int32) ([]*SampleHeader, error
 	}
 
 	// The last one is the terminator.
-	n, err = r.Read(make([]byte, 46))
-	if err != nil {
+	if _, err := io.ReadFull(r, make([]byte, 46)); err != nil {
 		return nil, err
-	}
-	if n != 46 {
-		return nil, errors.New("failed to read the sample header list")
 	}
 
 	return headers, nil

@@ -1,6 +1,7 @@
 package meltysynth
 
 import (
+	"errors"
 	"math"
 	"time"
 )
@@ -15,10 +16,14 @@ type MidiFileSequencer struct {
 	loopIndex   int32
 }
 
-func NewMidiFileSequencer(s *Synthesizer) *MidiFileSequencer {
+func NewMidiFileSequencer(s *Synthesizer) (*MidiFileSequencer, error) {
+	if s == nil {
+		return nil, errors.New("synthesizer must not be nil")
+	}
+
 	result := new(MidiFileSequencer)
 	result.synthesizer = s
-	return result
+	return result, nil
 }
 
 func (seq *MidiFileSequencer) Play(midiFile *MidiFile, loop bool) {
@@ -43,6 +48,9 @@ func (seq *MidiFileSequencer) Stop() {
 func (seq *MidiFileSequencer) Render(left []float32, right []float32) {
 	var wrote int32
 	length := int32(len(left))
+	if rightLength := int32(len(right)); rightLength < length {
+		length = rightLength
+	}
 	for wrote < length {
 		if seq.blockWrote == seq.synthesizer.BlockSize {
 			seq.processEvents()

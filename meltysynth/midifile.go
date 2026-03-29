@@ -76,6 +76,10 @@ func (message message) getTempo() float64 {
 }
 
 func NewMidiFile(r io.Reader) (*MidiFile, error) {
+	if r == nil {
+		return nil, errors.New("reader must not be nil")
+	}
+
 	var err error
 
 	chunkType, err := readFourCC(r)
@@ -137,7 +141,6 @@ func NewMidiFile(r io.Reader) (*MidiFile, error) {
 }
 
 func readTrack(r io.Reader) ([]message, []int32, error) {
-	var n int
 	var err error
 
 	chunkType, err := readFourCC(r)
@@ -148,7 +151,9 @@ func readTrack(r io.Reader) ([]message, []int32, error) {
 		return nil, nil, fmt.Errorf(`the chunk type must be "MTrk", but was %q`, chunkType)
 	}
 
-	r.Read(make([]byte, 4))
+	if _, err := io.ReadFull(r, make([]byte, 4)); err != nil {
+		return nil, nil, err
+	}
 
 	messages := make([]message, 0, 300)
 	ticks := make([]int32, 0, 300)
@@ -209,11 +214,7 @@ func readTrack(r io.Reader) ([]message, []int32, error) {
 			}
 			switch metaEvent {
 			case 0x2F: // End of Track
-				n, err = r.Read(make([]byte, 1))
-				if err != nil {
-					return nil, nil, err
-				}
-				if n != 1 {
+				if _, err := io.ReadFull(r, make([]byte, 1)); err != nil {
 					return nil, nil, err
 				}
 				messages = append(messages, endOfTrack())
@@ -326,12 +327,8 @@ func readTempo(r io.Reader) (int32, error) {
 	}
 
 	var bs [3]byte
-	n, err := r.Read(bs[:])
-	if err != nil {
+	if _, err := io.ReadFull(r, bs[:]); err != nil {
 		return 0, err
-	}
-	if n != 3 {
-		return 0, errors.New("failed to read the tempo value")
 	}
 
 	b1 := bs[0]
@@ -346,17 +343,16 @@ func discardData(r io.Reader) error {
 		return err
 	}
 
-	n, err := r.Read(make([]byte, size))
-	if err != nil {
+	if _, err := io.ReadFull(r, make([]byte, size)); err != nil {
 		return err
-	}
-	if n != int(size) {
-		return errors.New("failed to read the data")
 	}
 
 	return nil
 }
 
 func (mf *MidiFile) GetLength() time.Duration {
+	if len(mf.times) == 0 {
+		return 0
+	}
 	return mf.times[len(mf.times)-1]
 }

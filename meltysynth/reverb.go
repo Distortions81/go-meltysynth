@@ -135,12 +135,8 @@ func scaleTuning(sampleRate int32, tuning int) int {
 func (r *reverb) process(input []float32, outputLeft []float32, outputRight []float32) {
 	length := len(input)
 
-	for t := 0; t < length; t++ {
-		outputLeft[t] = 0
-	}
-	for t := 0; t < length; t++ {
-		outputRight[t] = 0
-	}
+	zeroFloat32s(outputLeft[:length])
+	zeroFloat32s(outputRight[:length])
 
 	for i := 0; i < len(r.cfsL); i++ {
 		r.cfsL[i].process(input, outputLeft)
@@ -235,10 +231,7 @@ func newCombFilter(bufferSize int) *combFilter {
 }
 
 func (cf *combFilter) mute() {
-	bufLen := len(cf.buffer)
-	for i := 0; i < bufLen; i++ {
-		cf.buffer[i] = 0
-	}
+	zeroFloat32s(cf.buffer)
 }
 
 func (cf *combFilter) process(inputBlock []float32, outputBlock []float32) {

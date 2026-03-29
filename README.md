@@ -16,7 +16,7 @@ Go-MeltySynth is a SoundFont synthesizer written in Go, ported from [MeltySynth 
 
 https://www.youtube.com/watch?v=HLta6pASIFg
 
-[![Youtube video](https://img.youtube.com/vi/HLta6pASIFg/0.jpg)](https://www.youtube.com/watch?v=HLta6pASIFg)
+[![YouTube video](https://img.youtube.com/vi/HLta6pASIFg/0.jpg)](https://www.youtube.com/watch?v=HLta6pASIFg)
 
 
 
@@ -114,7 +114,7 @@ midiFile, _ := meltysynth.NewMidiFile(mid)
 mid.Close()
 
 // Create the MIDI sequencer.
-sequencer := meltysynth.NewMidiFileSequencer(synthesizer)
+sequencer, _ := meltysynth.NewMidiFileSequencer(synthesizer)
 sequencer.Play(midiFile, true)
 
 // The output buffer.
@@ -153,7 +153,7 @@ sequencer.Render(left, right)
     - [x] Chorus
 * __Other things__
     - [x] Standard MIDI file support
-    - [x] Performace optimization
+    - [x] Performance optimization
 
 
 

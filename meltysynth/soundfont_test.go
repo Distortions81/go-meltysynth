@@ -44,7 +44,11 @@ func TimGM6mb_SoundFontInfo(t *testing.T, soundFont *SoundFont) {
 		t.Fail()
 	}
 
-	if soundFont.Info.Auther != "" {
+	if soundFont.Info.Author != "" {
+		t.Fail()
+	}
+
+	if soundFont.Info.Auther != soundFont.Info.Author {
 		t.Fail()
 	}
 

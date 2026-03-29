@@ -12,7 +12,6 @@ type generator struct {
 }
 
 func readGeneratorsFromChunk(r io.Reader, size int32) ([]generator, error) {
-	var n int
 	var err error
 
 	if size == 0 || size%4 != 0 {
@@ -43,12 +42,8 @@ func readGeneratorsFromChunk(r io.Reader, size int32) ([]generator, error) {
 	}
 
 	// The last one is the terminator.
-	n, err = r.Read(make([]byte, 4))
-	if err != nil {
+	if _, err := io.ReadFull(r, make([]byte, 4)); err != nil {
 		return nil, err
-	}
-	if n != 4 {
-		return nil, errors.New("failed to read the generator list")
 	}
 
 	return generators, nil

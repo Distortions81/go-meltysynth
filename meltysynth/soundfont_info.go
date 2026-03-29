@@ -14,11 +14,13 @@ type SoundFontInfo struct {
 	RomName           string
 	RomVersion        SoundFontVersion
 	CreationDate      string
-	Auther            string
-	TargetProduct     string
-	Copyright         string
-	Comments          string
-	Tools             string
+	Author            string
+	// Deprecated: use Author.
+	Auther        string
+	TargetProduct string
+	Copyright     string
+	Comments      string
+	Tools         string
 }
 
 func newSoundFontInfo(r io.Reader) (*SoundFontInfo, error) {
@@ -80,7 +82,8 @@ func newSoundFontInfo(r io.Reader) (*SoundFontInfo, error) {
 		case "ICRD":
 			result.CreationDate, err = readFixedLengthString(r, size)
 		case "IENG":
-			result.Auther, err = readFixedLengthString(r, size)
+			result.Author, err = readFixedLengthString(r, size)
+			result.Auther = result.Author
 		case "IPRD":
 			result.TargetProduct, err = readFixedLengthString(r, size)
 		case "ICOP":

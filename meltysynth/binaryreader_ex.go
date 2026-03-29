@@ -8,12 +8,8 @@ import (
 
 func readFourCC(r io.Reader) (string, error) {
 	var data [4]byte
-	n, err := r.Read(data[:])
-	if err != nil {
+	if _, err := io.ReadFull(r, data[:]); err != nil {
 		return "", err
-	}
-	if n != 4 {
-		return "", errors.New("failed to read the four-cc")
 	}
 
 	for i := 0; i < 4; i++ {
@@ -28,12 +24,8 @@ func readFourCC(r io.Reader) (string, error) {
 
 func readFixedLengthString(r io.Reader, length int32) (string, error) {
 	var data []byte = make([]byte, length)
-	n, err := r.Read(data[:])
-	if err != nil {
+	if _, err := io.ReadFull(r, data[:]); err != nil {
 		return "", err
-	}
-	if n != int(length) {
-		return "", errors.New("failed to read the fixed-length string")
 	}
 
 	var actualLength int32

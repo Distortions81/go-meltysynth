@@ -36,7 +36,7 @@ func loadSoundFont(t *testing.T, env, defaultPath string) *SoundFont {
 			if useDefault {
 				t.Skipf("missing environment variable %q to load soundfont, default path %q not found", env, defaultPath)
 			}
-			t.Fatalf("envionrment variable %q set to %q, but file does not exist", env, p)
+			t.Fatalf("environment variable %q set to %q, but file does not exist", env, p)
 		}
 		t.Fatal(err)
 	}

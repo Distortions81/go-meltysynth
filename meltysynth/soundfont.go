@@ -17,6 +17,10 @@ type SoundFont struct {
 }
 
 func NewSoundFont(r io.Reader) (*SoundFont, error) {
+	if r == nil {
+		return nil, errors.New("reader must not be nil")
+	}
+
 	chunkId, err := readFourCC(r)
 	if err != nil {
 		return nil, err
