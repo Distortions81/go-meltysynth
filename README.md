@@ -33,6 +33,14 @@ go get github.com/sinshu/go-meltysynth
 Benchmarks in `meltysynth/benchmark_e1m1_test.go` use Doom's `D_E1M1` MUS data from `../GD-DOOM/DOOM1.WAD` with `../GD-DOOM/soundfonts/SGM-HQ.sf2`.
 The harness fixes setup overhead by loading the SoundFont and parsing the MUS stream once, then benchmarking only `Synthesizer.Reset()` plus playback work.
 
+Specific performance improvements in this fork:
+
+* Cached channel-derived controller values such as volume, pan, expression, modulation, tuning, and pitch bend so voices reuse precomputed values instead of rebuilding them every render pass.
+* Cached oscillator pitch ratio state so repeated blocks at the same pitch avoid recomputing exponential pitch conversion.
+* Added a pan gain lookup table so per-voice panning avoids repeated `sin` and `cos` calls during mixing.
+* Avoided redundant low-pass filter coefficient recalculation when cutoff and resonance have not changed.
+* Removed unnecessary float `math.Min` work in `Synthesizer.Render()` and tightened render-block voice processing order to reduce overhead in the hot path.
+
 Measured on March 29, 2026 on an AMD Ryzen 9 7950X, using the median of 5 runs:
 
 | Benchmark | This repo | Upstream (`05d3113`) | Improvement |
