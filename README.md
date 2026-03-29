@@ -28,6 +28,38 @@ go get github.com/sinshu/go-meltysynth
 
 
 
+## Performance
+
+Benchmarks in `meltysynth/benchmark_e1m1_test.go` use Doom's `D_E1M1` MUS data from `../GD-DOOM/DOOM1.WAD` with `../GD-DOOM/soundfonts/SGM-HQ.sf2`.
+The harness fixes setup overhead by loading the SoundFont and parsing the MUS stream once, then benchmarking only `Synthesizer.Reset()` plus playback work.
+
+Measured on March 29, 2026 on an AMD Ryzen 9 7950X, using the median of 5 runs:
+
+| Benchmark | This repo | Upstream (`05d3113`) | Improvement |
+| --- | ---: | ---: | ---: |
+| `BenchmarkE1M1FirstChunkSGMHQ` | `98.678 µs/op` | `101.142 µs/op` | `2.44%` |
+| `BenchmarkE1M1FullRenderSGMHQ` | `821.116 ms/op` | `844.117 ms/op` | `2.72%` |
+
+Reproduce with:
+
+```
+MELTYSYNTH_E1M1_WAD=../GD-DOOM/DOOM1.WAD \
+MELTYSYNTH_E1M1_SF2=../GD-DOOM/soundfonts/SGM-HQ.sf2 \
+go test ./meltysynth -run '^$' -bench 'BenchmarkE1M1(FirstChunk|FullRender)SGMHQ$' -benchmem -count=5
+```
+
+
+
+## Bug Fixes
+
+This fork also includes correctness fixes beyond the performance work:
+
+* Fixed oscillator loop wrapping for looping samples so playback re-enters the loop relative to `startLoop` and stays correct even when pitch steps jump beyond the loop end.
+* Fixed invalid looping sample handling by falling back to non-looped playback when `endLoop <= startLoop`, avoiding broken wrap behavior on malformed regions.
+* Fixed active voice processing order in `renderBlock()` by updating the voice collection before reading `activeVoiceCount`, so rendering uses the current live voice set instead of a stale count.
+
+
+
 ## Examples
 
 An example code to synthesize a simple chord:
