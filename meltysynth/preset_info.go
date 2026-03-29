@@ -20,7 +20,7 @@ type presetInfo struct {
 func readPresetsFromChunk(r io.Reader, size int32) ([]*presetInfo, error) {
 	var err error
 
-	if size%38 != 0 {
+	if size == 0 || size%38 != 0 {
 		return nil, errors.New("the preset list is invalid")
 	}
 

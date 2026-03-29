@@ -172,6 +172,12 @@ func (s *Synthesizer) ProcessMidiMessage(channel int32, command int32, data1 int
 		case 0x5D: // Chorus Send
 			channelInfo.setChorusSend(data2)
 
+		case 0x63: // NRPN Coarse
+			channelInfo.setNrpnCoarse(data2)
+
+		case 0x62: // NRPN Fine
+			channelInfo.setNrpnFine(data2)
+
 		case 0x65: // RPN Coarse
 			channelInfo.setRpnCoarse(data2)
 

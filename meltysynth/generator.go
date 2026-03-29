@@ -15,7 +15,7 @@ func readGeneratorsFromChunk(r io.Reader, size int32) ([]generator, error) {
 	var n int
 	var err error
 
-	if size%4 != 0 {
+	if size == 0 || size%4 != 0 {
 		return nil, errors.New("the generator list is invalid")
 	}
 

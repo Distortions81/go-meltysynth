@@ -15,7 +15,7 @@ type instrumentInfo struct {
 func readInstrumentsFromChunk(r io.Reader, size int32) ([]*instrumentInfo, error) {
 	var err error
 
-	if size%22 != 0 {
+	if size == 0 || size%22 != 0 {
 		return nil, errors.New("the instrument list is invalid")
 	}
 

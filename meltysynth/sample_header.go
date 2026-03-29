@@ -23,7 +23,7 @@ func readSampleHeadersFromChunk(r io.Reader, size int32) ([]*SampleHeader, error
 	var n int
 	var err error
 
-	if size%46 != 0 {
+	if size == 0 || size%46 != 0 {
 		return nil, errors.New("the sample header list is invalid")
 	}
 
