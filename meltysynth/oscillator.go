@@ -1,9 +1,5 @@
 package meltysynth
 
-import (
-	"math"
-)
-
 // In this class, fixed-point numbers are used for speed-up.
 // A fixed-point number is expressed by Int64, whose lower 24 bits represent the fraction part,
 // and the rest represent the integer part.
@@ -31,12 +27,6 @@ type oscillator struct {
 	lastPitchChange  float32
 	lastPitchRatioFP int64
 	hasLastPitch     bool
-}
-
-func newOscillator(s *Synthesizer) *oscillator {
-	result := new(oscillator)
-	result.synthesizer = s
-	return result
 }
 
 func (o *oscillator) start(data []int16, loopMode int32, sampleRate int32, start int32, end int32, startLoop int32, endLoop int32, rootKey int32, coarseTune int32, fineTune int32, scaleTuning int32) {
@@ -74,7 +64,7 @@ func (o *oscillator) process(block []float32, pitch float32) bool {
 	if o.hasLastPitch && pitchChange == o.lastPitchChange {
 		return o.fillBlock(block, o.lastPitchRatioFP)
 	}
-	pitchRatioFP := int64(float64(fracUnit) * (float64(o.sampleRateRatio) * math.Exp2(float64(pitchChange)/12)))
+	pitchRatioFP := int64(float64(fracUnit) * (float64(o.sampleRateRatio) * float64(calcCentsToMultiplyingFactor(100*pitchChange))))
 	o.lastPitchChange = pitchChange
 	o.lastPitchRatioFP = pitchRatioFP
 	o.hasLastPitch = true
@@ -127,25 +117,59 @@ func (o *oscillator) fillBlock_Continuous(block []float32, pitchRatio_fp int64) 
 		return o.fillBlock_NoLoop(block, pitchRatio_fp)
 	}
 
-	for t := 0; t < blockLength; t++ {
-		if o.position_fp >= endLoop_fp {
-			o.position_fp = startLoop_fp + (o.position_fp-startLoop_fp)%loopLength_fp
+	position_fp := o.position_fp
+	lastSample_fp := int64(o.endLoop-1) << fracBits
+	data := o.data
+	for offset := 0; offset < blockLength; {
+		if position_fp >= endLoop_fp {
+			position_fp = startLoop_fp + (position_fp-startLoop_fp)%loopLength_fp
 		}
 
-		index1 := int32(o.position_fp >> fracBits)
-		index2 := index1 + 1
-
-		if index2 >= o.endLoop {
-			index2 -= loopLength
+		boundary_fp := endLoop_fp
+		wrapInterpolation := position_fp >= lastSample_fp
+		if !wrapInterpolation {
+			boundary_fp = lastSample_fp
+		}
+		span := blockLength - offset
+		if pitchRatio_fp > 0 {
+			span = minInt(span, samplesBeforeBoundary(position_fp, boundary_fp, pitchRatio_fp))
 		}
 
-		x1 := int64(o.data[index1])
-		x2 := int64(o.data[index2])
-		a_fp := o.position_fp & (fracUnit - 1)
-		block[t] = fpToSample * float32((x1<<fracBits)+a_fp*(x2-x1))
-
-		o.position_fp += pitchRatio_fp
+		if wrapInterpolation {
+			for t := offset; t < offset+span; t++ {
+				index1 := int(position_fp >> fracBits)
+				index2 := index1 + 1 - int(loopLength)
+				x1 := int64(data[index1])
+				x2 := int64(data[index2])
+				a_fp := position_fp & (fracUnit - 1)
+				block[t] = fpToSample * float32((x1<<fracBits)+a_fp*(x2-x1))
+				position_fp += pitchRatio_fp
+			}
+		} else {
+			for t := offset; t < offset+span; t++ {
+				index1 := int(position_fp >> fracBits)
+				x1 := int64(data[index1])
+				x2 := int64(data[index1+1])
+				a_fp := position_fp & (fracUnit - 1)
+				block[t] = fpToSample * float32((x1<<fracBits)+a_fp*(x2-x1))
+				position_fp += pitchRatio_fp
+			}
+		}
+		offset += span
 	}
+	o.position_fp = position_fp
 
 	return true
+}
+
+func samplesBeforeBoundary(position_fp int64, boundary_fp int64, step_fp int64) int {
+	distance := boundary_fp - position_fp
+	return int(1 + (distance-1)/step_fp)
+}
+
+func minInt(a int, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

@@ -62,7 +62,41 @@ func BenchmarkE1M1FullRenderSGMHQ(b *testing.B) {
 	}
 }
 
+func BenchmarkE1M1FullRenderDrySGMHQ(b *testing.B) {
+	synth := benchmarkE1M1SynthWithEffects(b, false)
+	left := make([]float32, benchChunk1024)
+	right := make([]float32, benchChunk1024)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		synth.Reset()
+		benchmarkRenderFullSong(synth, benchmarkE1M1Events(b), left, right)
+	}
+}
+
+func BenchmarkE1M1SynthConstructionSGMHQ(b *testing.B) {
+	benchmarkLoadE1M1Assets()
+	if benchE1M1Err != nil {
+		b.Fatal(benchE1M1Err)
+	}
+	settings := NewSynthesizerSettings(benchSampleRate)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := NewSynthesizer(benchE1M1SoundFont, settings); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func benchmarkE1M1Synth(b *testing.B) *Synthesizer {
+	return benchmarkE1M1SynthWithEffects(b, true)
+}
+
+func benchmarkE1M1SynthWithEffects(b *testing.B, effects bool) *Synthesizer {
 	b.Helper()
 
 	benchmarkLoadE1M1Assets()
@@ -71,6 +105,7 @@ func benchmarkE1M1Synth(b *testing.B) *Synthesizer {
 	}
 
 	settings := NewSynthesizerSettings(benchSampleRate)
+	settings.EnableReverbAndChorus = effects
 	synth, err := NewSynthesizer(benchE1M1SoundFont, settings)
 	if err != nil {
 		b.Fatalf("NewSynthesizer() error: %v", err)

@@ -19,12 +19,6 @@ type volumeEnvelope struct {
 	priority             float32
 }
 
-func newVolumeEnvelope(s *Synthesizer) *volumeEnvelope {
-	result := new(volumeEnvelope)
-	result.synthesizer = s
-	return result
-}
-
 func (env *volumeEnvelope) start(delay float32, attack float32, hold float32, decay float32, sustain float32, release float32) {
 	env.attackSlope = 1 / float64(attack)
 	env.decaySlope = -9.226 / float64(decay)

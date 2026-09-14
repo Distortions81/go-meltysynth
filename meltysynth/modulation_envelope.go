@@ -19,12 +19,6 @@ type modulationEnvelope struct {
 	value                float32
 }
 
-func newModulationEnvelope(s *Synthesizer) *modulationEnvelope {
-	result := new(modulationEnvelope)
-	result.synthesizer = s
-	return result
-}
-
 func (env *modulationEnvelope) start(delay float32, attack float32, hold float32, decay float32, sustain float32, release float32) {
 	env.attackSlope = 1 / float64(attack)
 	env.decaySlope = 1 / float64(decay)

@@ -3,28 +3,19 @@ package meltysynth
 import "math"
 
 type lfo struct {
-	synthesizer          *Synthesizer
-	active               bool
-	delay                float64
-	period               float64
-	processedSampleCount int32
-	value                float32
-}
-
-func newLfo(s *Synthesizer) *lfo {
-	result := new(lfo)
-	result.synthesizer = s
-	return result
+	synthesizer    *Synthesizer
+	active         bool
+	phase          float64
+	phaseIncrement float64
+	value          float32
 }
 
 func (lfo *lfo) start(delay float32, frequency float32) {
 	if frequency > 1.0e-3 {
 		lfo.active = true
 
-		lfo.delay = float64(delay)
-		lfo.period = 1.0 / float64(frequency)
-
-		lfo.processedSampleCount = 0
+		lfo.phase = -float64(delay) * float64(frequency)
+		lfo.phaseIncrement = float64(lfo.synthesizer.BlockSize) * float64(frequency) / float64(lfo.synthesizer.SampleRate)
 		lfo.value = 0
 		return
 	}
@@ -37,21 +28,25 @@ func (lfo *lfo) process() {
 		return
 	}
 
-	lfo.processedSampleCount += lfo.synthesizer.BlockSize
-	currentTime := float64(lfo.processedSampleCount) / float64(lfo.synthesizer.SampleRate)
-
-	if currentTime < lfo.delay {
+	lfo.phase += lfo.phaseIncrement
+	if lfo.phase < 0 {
 		lfo.value = 0
 		return
 	}
-	phase := math.Mod(currentTime-lfo.delay, lfo.period) / lfo.period
+	if lfo.phase >= 1 {
+		if lfo.phase < 2 {
+			lfo.phase--
+		} else {
+			lfo.phase -= math.Floor(lfo.phase)
+		}
+	}
 
 	switch {
-	case phase < 0.25:
-		lfo.value = float32(4 * phase)
-	case phase < 0.75:
-		lfo.value = float32(4 * (0.5 - phase))
+	case lfo.phase < 0.25:
+		lfo.value = float32(4 * lfo.phase)
+	case lfo.phase < 0.75:
+		lfo.value = float32(4 * (0.5 - lfo.phase))
 	default:
-		lfo.value = float32(4 * (phase - 1.0))
+		lfo.value = float32(4 * (lfo.phase - 1.0))
 	}
 }

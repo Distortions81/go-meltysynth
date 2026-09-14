@@ -35,14 +35,14 @@ func init() {
 type voice struct {
 	synthesizer *Synthesizer
 
-	volEnv *volumeEnvelope
-	modEnv *modulationEnvelope
+	volEnv volumeEnvelope
+	modEnv modulationEnvelope
 
-	vibLfo *lfo
-	modLfo *lfo
+	vibLfo lfo
+	modLfo lfo
 
-	oscillator *oscillator
-	filter     *biQuadFilter
+	oscillator oscillator
+	filter     biQuadFilter
 
 	block []float32
 
@@ -94,21 +94,22 @@ type voice struct {
 	voiceLength int32
 }
 
-func newVoice(s *Synthesizer) *voice {
-	return &voice{
+func newVoice(s *Synthesizer) voice {
+	result := voice{
 		synthesizer: s,
-		volEnv:      newVolumeEnvelope(s),
-		modEnv:      newModulationEnvelope(s),
-		vibLfo:      newLfo(s),
-		modLfo:      newLfo(s),
-		oscillator:  newOscillator(s),
-		filter:      newBiQuadFilter(s),
 		block:       make([]float32, s.BlockSize),
 	}
+	result.volEnv.synthesizer = s
+	result.modEnv.synthesizer = s
+	result.vibLfo.synthesizer = s
+	result.modLfo.synthesizer = s
+	result.oscillator.synthesizer = s
+	result.filter.synthesizer = s
+	return result
 }
 
-func (v *voice) start(region regionPair, channel int32, key int32, velocity int32) {
-	v.exclusiveClass = region.GetExclusiveClass()
+func (v *voice) start(params *voiceParameters, channel int32, key int32, velocity int32) {
+	v.exclusiveClass = params.exclusiveClass
 	v.channel = channel
 	v.key = key
 	v.velocity = velocity
@@ -116,37 +117,46 @@ func (v *voice) start(region regionPair, channel int32, key int32, velocity int3
 	if velocity > 0 {
 		// According to the Polyphone's implementation, the initial attenuation should be reduced to 40%.
 		// I'm not sure why, but this indeed improves the loudness variability.
-		sampleAttenuation := 0.4 * region.GetInitialAttenuation()
-		filterAttenuation := 0.5 * region.GetInitialFilterQ()
-		decibels := 2*calcLinearToDecibels(float32(velocity)/float32(127)) - sampleAttenuation - filterAttenuation
+		decibels := 2*calcLinearToDecibels(float32(velocity)/float32(127)) - params.sampleAttenuation - params.filterAttenuation
 		v.noteGain = calcDecibelsToLinear(decibels)
 	} else {
 		v.noteGain = 0
 	}
 
-	v.cutoff = region.GetInitialFilterCutoffFrequency()
-	v.resonance = calcDecibelsToLinear(region.GetInitialFilterQ())
+	v.cutoff = params.cutoff
+	v.resonance = params.resonance
 
-	v.vibLfoToPitch = 0.01 * float32(region.GetVibratoLfoToPitch())
-	v.modLfoToPitch = 0.01 * float32(region.GetModulationLfoToPitch())
-	v.modEnvToPitch = 0.01 * float32(region.GetModulationEnvelopeToPitch())
+	v.vibLfoToPitch = params.vibLfoToPitch
+	v.modLfoToPitch = params.modLfoToPitch
+	v.modEnvToPitch = params.modEnvToPitch
 
-	v.modLfoToCutoff = region.GetModulationLfoToFilterCutoffFrequency()
-	v.modEnvToCutoff = region.GetModulationEnvelopeToFilterCutoffFrequency()
-	v.dynamicCutoff = v.modLfoToCutoff != 0 || v.modEnvToCutoff != 0
+	v.modLfoToCutoff = params.modLfoToCutoff
+	v.modEnvToCutoff = params.modEnvToCutoff
+	v.dynamicCutoff = params.dynamicCutoff
 
-	v.modLfoToVolume = region.GetModulationLfoToVolume()
-	v.dynamicVolume = v.modLfoToVolume > 0.05
+	v.modLfoToVolume = params.modLfoToVolume
+	v.dynamicVolume = params.dynamicVolume
 
-	v.instrumentPan = calcClamp(region.GetPan(), -50, 50)
-	v.instrumentReverb = 0.01 * region.GetReverbEffectsSend()
-	v.instrumentChorus = 0.01 * region.GetChorusEffectsSend()
+	v.instrumentPan = params.instrumentPan
+	v.instrumentReverb = params.instrumentReverb
+	v.instrumentChorus = params.instrumentChorus
 
-	v.volEnv.startByRegion(region, key, velocity)
-	v.modEnv.startByRegion(region, key, velocity)
-	v.vibLfo.startVibrato(region, key, velocity)
-	v.modLfo.startModulation(region, key, velocity)
-	v.oscillator.startByRegion(v.synthesizer.SoundFont.WaveData, region)
+	vol := &params.volumeEnvelope
+	v.volEnv.start(vol.delay, vol.attack,
+		vol.hold*calcKeyNumberToMultiplyingFactor(vol.keyNumberToHold, key),
+		vol.decay*calcKeyNumberToMultiplyingFactor(vol.keyNumberToDecay, key),
+		vol.sustain, vol.release)
+	mod := &params.modulationEnvelope
+	v.modEnv.start(mod.delay, mod.attack*(float32(145-velocity)/144),
+		mod.hold*calcKeyNumberToMultiplyingFactor(mod.keyNumberToHold, key),
+		mod.decay*calcKeyNumberToMultiplyingFactor(mod.keyNumberToDecay, key),
+		mod.sustain, mod.release)
+	v.vibLfo.start(params.vibratoLfoDelay, params.vibratoLfoFrequency)
+	v.modLfo.start(params.modulationLfoDelay, params.modulationLfoFrequency)
+	osc := &params.oscillator
+	v.oscillator.start(v.synthesizer.SoundFont.WaveData, osc.loopMode, osc.sampleRate,
+		osc.sampleStart, osc.sampleEnd, osc.startLoop, osc.endLoop, osc.rootKey,
+		osc.coarseTune, osc.fineTune, osc.scaleTuning)
 	v.filter.clearBuffer()
 	v.filter.setLowPassFilter(v.cutoff, v.resonance)
 

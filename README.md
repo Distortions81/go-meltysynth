@@ -38,6 +38,8 @@ Specific performance improvements in this fork:
 * Cached channel-derived controller values such as volume, pan, expression, modulation, tuning, and pitch bend so voices reuse precomputed values instead of rebuilding them every render pass.
 * Cached oscillator pitch ratio state so repeated blocks at the same pitch avoid recomputing exponential pitch conversion.
 * Added a pan gain lookup table so per-voice panning avoids repeated `sin` and `cos` calls during mixing.
+* Added interpolated lookup tables for cents-to-ratio and decibel-to-linear conversions used by pitch, filters, envelopes, and modulation.
+* Stored voices and their DSP state contiguously, precomputed immutable region parameters while loading SoundFonts, and changed LFOs to incremental phase accumulation.
 * Avoided redundant low-pass filter coefficient recalculation when cutoff and resonance have not changed.
 * Removed unnecessary float `math.Min` work in `Synthesizer.Render()` and tightened render-block voice processing order to reduce overhead in the hot path.
 
@@ -53,7 +55,7 @@ Reproduce with:
 ```
 MELTYSYNTH_E1M1_WAD=../GD-DOOM/DOOM1.WAD \
 MELTYSYNTH_E1M1_SF2=../GD-DOOM/soundfonts/SGM-HQ.sf2 \
-go test ./meltysynth -run '^$' -bench 'BenchmarkE1M1(FirstChunk|FullRender)SGMHQ$' -benchmem -count=5
+go test ./meltysynth -run '^$' -bench 'BenchmarkE1M1(FirstChunk|FullRender|FullRenderDry|SynthConstruction)SGMHQ$' -benchmem -count=5
 ```
 
 

@@ -23,12 +23,6 @@ type biQuadFilter struct {
 	y2          float32
 }
 
-func newBiQuadFilter(s *Synthesizer) *biQuadFilter {
-	result := new(biQuadFilter)
-	result.synthesizer = s
-	return result
-}
-
 func (bf *biQuadFilter) clearBuffer() {
 	bf.x1 = 0
 	bf.x2 = 0
@@ -74,17 +68,32 @@ func (bf *biQuadFilter) process(block []float32) {
 	blockLength := len(block)
 
 	if bf.active {
+		a0 := bf.a0
+		a1 := bf.a1
+		a2 := bf.a2
+		a3 := bf.a3
+		a4 := bf.a4
+		x1 := bf.x1
+		x2 := bf.x2
+		y1 := bf.y1
+		y2 := bf.y2
+
 		for t := 0; t < blockLength; t++ {
 			input := block[t]
-			output := bf.a0*input + bf.a1*bf.x1 + bf.a2*bf.x2 - bf.a3*bf.y1 - bf.a4*bf.y2
+			output := a0*input + a1*x1 + a2*x2 - a3*y1 - a4*y2
 
-			bf.x2 = bf.x1
-			bf.x1 = input
-			bf.y2 = bf.y1
-			bf.y1 = output
+			x2 = x1
+			x1 = input
+			y2 = y1
+			y1 = output
 
 			block[t] = output
 		}
+
+		bf.x1 = x1
+		bf.x2 = x2
+		bf.y1 = y1
+		bf.y2 = y2
 	} else {
 		bf.x2 = block[blockLength-2]
 		bf.x1 = block[blockLength-1]

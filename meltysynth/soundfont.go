@@ -14,6 +14,8 @@ type SoundFont struct {
 	SampleHeaders []*SampleHeader
 	Presets       []*Preset
 	Instruments   []*Instrument
+
+	preparedPresets []*preparedPreset
 }
 
 func NewSoundFont(r io.Reader) (*SoundFont, error) {
@@ -68,6 +70,14 @@ func NewSoundFont(r io.Reader) (*SoundFont, error) {
 	result.SampleHeaders = parameters.sampleHeaders
 	result.Presets = parameters.presets
 	result.Instruments = parameters.instruments
+	result.preparePresets()
 
 	return result, nil
+}
+
+func (sf *SoundFont) preparePresets() {
+	sf.preparedPresets = make([]*preparedPreset, len(sf.Presets))
+	for i, preset := range sf.Presets {
+		sf.preparedPresets[i] = newPreparedPreset(preset)
+	}
 }

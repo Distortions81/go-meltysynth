@@ -19,8 +19,8 @@ type Synthesizer struct {
 
 	minimumVoiceDuration int32
 
-	presetLookup  map[int32]*Preset
-	defaultPreset *Preset
+	presetLookup  map[int32]*preparedPreset
+	defaultPreset *preparedPreset
 
 	channels []*channel
 
@@ -70,22 +70,30 @@ func NewSynthesizer(sf *SoundFont, settings *SynthesizerSettings) (*Synthesizer,
 
 	result.minimumVoiceDuration = settings.SampleRate / 500
 
-	result.presetLookup = make(map[int32]*Preset)
+	result.presetLookup = make(map[int32]*preparedPreset)
 
 	minPresetId := int32(math.MaxInt32)
 	for i := 0; i < len(sf.Presets); i++ {
 		preset := sf.Presets[i]
+		var prepared *preparedPreset
+		if len(sf.preparedPresets) == len(sf.Presets) && sf.preparedPresets[i] != nil && sf.preparedPresets[i].preset == preset {
+			prepared = sf.preparedPresets[i]
+		} else {
+			// SoundFonts assembled through struct literals do not pass through
+			// NewSoundFont, so prepare their regions while constructing the synth.
+			prepared = newPreparedPreset(preset)
+		}
 		// The preset ID is Int32, where the upper 16 bits represent the bank number
 		// and the lower 16 bits represent the patch number.
 		// This ID is used to search for presets by the combination of bank number
 		// and patch number.
 		presetId := (preset.BankNumber << 16) | preset.PatchNumber
-		result.presetLookup[presetId] = preset
+		result.presetLookup[presetId] = prepared
 
 		// The preset with the minimum ID number will be default.
 		// If the SoundFont is GM compatible, the piano will be chosen.
 		if presetId < minPresetId {
-			result.defaultPreset = preset
+			result.defaultPreset = prepared
 			minPresetId = presetId
 		}
 	}
@@ -216,7 +224,7 @@ func (s *Synthesizer) NoteOff(channel int32, key int32) {
 	}
 
 	for i := int32(0); i < s.voices.activeVoiceCount; i++ {
-		voice := s.voices.voices[i]
+		voice := &s.voices.voices[i]
 		if voice.channel == channel && voice.key == key {
 			voice.end()
 		}
@@ -255,22 +263,12 @@ func (s *Synthesizer) NoteOn(channel int32, key int32, velocity int32) {
 		}
 	}
 
-	presetCount := len(preset.Regions)
-	for i := 0; i < presetCount; i++ {
-		presetRegion := preset.Regions[i]
-		if presetRegion.contains(key, velocity) {
-			instrumentCount := len(presetRegion.Instrument.Regions)
-			for j := 0; j < instrumentCount; j++ {
-				instrumentRegion := presetRegion.Instrument.Regions[j]
-				if instrumentRegion.contains(key, velocity) {
-					regionPair := newRegionPair(presetRegion, instrumentRegion)
-
-					voice := s.voices.requestNew(instrumentRegion, channel)
-					if voice != nil {
-						voice.start(regionPair, channel, key, velocity)
-					}
-				}
-			}
+	regions := preset.regionsFor(key, velocity)
+	for i := range regions {
+		params := regions[i]
+		voice := s.voices.requestNew(params.exclusiveClass, channel)
+		if voice != nil {
+			voice.start(params, channel, key, velocity)
 		}
 	}
 }
@@ -371,7 +369,7 @@ func (s *Synthesizer) renderBlock() {
 	zeroFloat32s(s.blockRight[:blockSize])
 
 	for i := 0; i < activeVoiceCount; i++ {
-		voice := s.voices.voices[i]
+		voice := &s.voices.voices[i]
 		previousGainLeft := masterVolume * voice.previousMixGainLeft
 		currentGainLeft := masterVolume * voice.currentMixGainLeft
 		s.writeBlock(previousGainLeft, currentGainLeft, voice.block, s.blockLeft)
@@ -384,7 +382,7 @@ func (s *Synthesizer) renderBlock() {
 		zeroFloat32s(s.chorusInputLeft[:blockSize])
 		zeroFloat32s(s.chorusInputRight[:blockSize])
 		for i := 0; i < activeVoiceCount; i++ {
-			voice := s.voices.voices[i]
+			voice := &s.voices.voices[i]
 			previousGainLeft := voice.previousChorusSend * voice.previousMixGainLeft
 			currentGainLeft := voice.currentChorusSend * voice.currentMixGainLeft
 			s.writeBlock(previousGainLeft, currentGainLeft, voice.block, s.chorusInputLeft)
@@ -399,7 +397,7 @@ func (s *Synthesizer) renderBlock() {
 		zeroFloat32s(s.reverbInput[:blockSize])
 		reverbInputGain := s.reverb.getInputGain()
 		for i := 0; i < activeVoiceCount; i++ {
-			voice := s.voices.voices[i]
+			voice := &s.voices.voices[i]
 			previousGain := reverbInputGain * voice.previousReverbSend * (voice.previousMixGainLeft + voice.previousMixGainRight)
 			currentGain := reverbInputGain * voice.currentReverbSend * (voice.currentMixGainLeft + voice.currentMixGainRight)
 			s.writeBlock(previousGain, currentGain, voice.block, s.reverbInput)
