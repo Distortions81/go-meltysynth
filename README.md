@@ -23,7 +23,7 @@ https://www.youtube.com/watch?v=HLta6pASIFg
 ## Installation
 
 ```
-go get github.com/sinshu/go-meltysynth
+go get github.com/Distortions81/go-meltysynth
 ```
 
 
